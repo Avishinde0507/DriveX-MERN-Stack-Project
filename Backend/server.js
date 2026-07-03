@@ -8,6 +8,7 @@ const path = require('path');
 const helmet = require('helmet');
 const mongoSanitize = require('./middleware/mongoSanitize');
 const connectDB = require('./config/db');
+const sendEmail = require('./utils/sendEmail');
 
 // ─────────────────────────────────────────────────────────────────
 // ENVIRONMENT VARIABLE VALIDATION
@@ -151,4 +152,6 @@ const PORT = process.env.PORT || 8080;
 
 app.listen(PORT, () => {
   console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+  // Verify Nodemailer SMTP connection on startup
+  sendEmail.verifyConnection();
 });

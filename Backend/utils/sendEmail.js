@@ -2,14 +2,23 @@
 
 const nodemailer = require('nodemailer');
 
-// Initialize the Nodemailer transporter using the Gmail SMTP service.
-// This is the most reliable way to connect to Gmail SMTP as it configures
-// host: smtp.gmail.com, port: 465, secure: true automatically under the hood.
+// Configure the transporter with Gmail's recommended SMTP settings:
+// Host: smtp.gmail.com
+// Port: 587 (STARTTLS)
+// Secure: false (since it uses STARTTLS)
+// family: 4 forces Node.js to prefer IPv4 (bypasses IPv6 routing/ENETUNREACH errors)
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false, 
+  family: 4, 
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
+  },
+  tls: {
+    // Necessary for environments like Render where SSL certs must bypass local validation
+    rejectUnauthorized: false,
   },
 });
 
@@ -25,8 +34,7 @@ const transporter = nodemailer.createTransport({
  */
 const sendEmail = async ({ to, subject, text, html, from }) => {
   const mailOptions = {
-    // If process.env.SMTP_FROM is set, use it; otherwise fall back to EMAIL_USER.
-    from: from || process.env.SMTP_FROM || `"${process.env.EMAIL_USER.split('@')[0]}" <${process.env.EMAIL_USER}>`,
+    from: from || process.env.SMTP_FROM || `"${process.env.EMAIL_USER ? process.env.EMAIL_USER.split('@')[0] : 'DriveX'}" <${process.env.EMAIL_USER}>`,
     to,
     subject,
     text,
@@ -39,9 +47,43 @@ const sendEmail = async ({ to, subject, text, html, from }) => {
     console.log(`✅ [Nodemailer] Email sent successfully. Message ID: ${info.messageId}`);
     return info;
   } catch (error) {
-    console.error(`❌ [Nodemailer Error] Failed to send email to ${to}. Reason:`, error.message);
+    console.error(`❌ [Nodemailer Error] Failed to send email to ${to}.`);
+    console.error(`   ↳ Error Message: ${error.message}`);
+    console.error(`   ↳ Code:          ${error.code || 'N/A'}`);
+    console.error(`   ↳ Command:       ${error.command || 'N/A'}`);
+    console.error(`   ↳ Response:      ${error.response || 'N/A'}`);
+    
+    if (error.code === 'EAUTH') {
+      console.error('   💡 Suggestion: Authentication failed. Verify EMAIL_USER is correct and EMAIL_PASS is a valid 16-character Gmail App Password.');
+    } else if (error.code === 'ENETUNREACH') {
+      console.error('   💡 Suggestion: Network unreachable. Ensure there is internet connectivity and IPv4 is preferred.');
+    }
     throw error;
   }
 };
+
+/**
+ * Verifies Nodemailer SMTP connectivity
+ */
+const verifyConnection = async () => {
+  console.log('📡 [Nodemailer] Verifying SMTP connection to smtp.gmail.com:587...');
+  try {
+    await transporter.verify();
+    console.log('✅ [Nodemailer] SMTP connection verified successfully. Ready to send emails.');
+  } catch (error) {
+    console.error('❌ [Nodemailer] SMTP connection verification failed.');
+    console.error(`   ↳ Message:  ${error.message}`);
+    console.error(`   ↳ Code:     ${error.code || 'N/A'}`);
+    
+    if (error.code === 'EAUTH') {
+      console.error('   💡 Suggestion: Check if EMAIL_USER and EMAIL_PASS are correct. Verify you are using a Gmail App Password.');
+    } else if (error.code === 'ENETUNREACH') {
+      console.error('   💡 Suggestion: Network routing error (IPv6 unreachable). Ensure the family setting resolves to IPv4.');
+    }
+  }
+};
+
+sendEmail.transporter = transporter;
+sendEmail.verifyConnection = verifyConnection;
 
 module.exports = sendEmail;
