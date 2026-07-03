@@ -8,10 +8,17 @@ const nodemailer = require('nodemailer');
 // Secure: false (since it uses STARTTLS)
 // family: 4 forces Node.js to prefer IPv4 (bypasses IPv6 routing/ENETUNREACH errors)
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false, 
+  family: 4, 
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
+  },
+  tls: {
+    // Necessary for environments like Render where SSL certs must bypass local validation
+    rejectUnauthorized: false,
   },
 });
 
@@ -59,7 +66,20 @@ const sendEmail = async ({ to, subject, text, html, from }) => {
  * Verifies Nodemailer SMTP connectivity
  */
 const verifyConnection = async () => {
-  console.log('📡 [Nodemailer] Verifying SMTP connection to smtp.gmail.com:587...');
+  console.log('\n📡 [Nodemailer] Deployed Environment SMTP Configuration Check:');
+  console.log(`   ↳ SMTP_HOST (from env):   ${process.env.SMTP_HOST || 'Not Set (using default smtp.gmail.com)'}`);
+  console.log(`   ↳ SMTP_PORT (from env):   ${process.env.SMTP_PORT || 'Not Set (using default 587)'}`);
+  console.log(`   ↳ SMTP_SECURE (from env): ${process.env.SMTP_SECURE || 'Not Set (using default false)'}`);
+  console.log(`   ↳ EMAIL_USER (from env):  ${process.env.EMAIL_USER || 'Not Set'}`);
+  console.log(`   ↳ EMAIL_PASS (from env):  ${process.env.EMAIL_PASS ? '******** (configured)' : 'NOT CONFIGURED'}`);
+
+  console.log('\n📡 [Nodemailer] SMTP Transporter Configuration:');
+  console.log(`   ↳ Host:   smtp.gmail.com`);
+  console.log(`   ↳ Port:   587`);
+  console.log(`   ↳ Secure: false (STARTTLS)`);
+  console.log(`   ↳ Family: IPv4 (Forced via family: 4)`);
+
+  console.log('\n📡 [Nodemailer] Verifying SMTP connection to smtp.gmail.com:587...');
   try {
     await transporter.verify();
     console.log('✅ [Nodemailer] SMTP connection verified successfully. Ready to send emails.');
