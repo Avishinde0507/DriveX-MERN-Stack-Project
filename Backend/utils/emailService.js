@@ -2,13 +2,8 @@
  * ════════════════════════════════════════════════════════════════
  *  DriveX Email Service
  *  ─────────────────────────────────────────────────────────────
- *  Routing: utils/transporter.js decides between:
- *    1. Resend HTTP API  (RESEND_API_KEY set)  ← works on Render
- *    2. Nodemailer SMTP  (SMTP_USER / SMTP_PASS set) ← works locally
- *
- *  ⚠️  If emails fail on Render/Railway/Docker, set RESEND_API_KEY.
- *      SMTP ports 465/587 are BLOCKED by those providers.
- *      Free plan: https://resend.com  (100 emails/day)
+ *  Routing: utils/transporter.js using:
+ *    Nodemailer SMTP  (SMTP_USER / SMTP_PASS set)
  * ════════════════════════════════════════════════════════════════
  */
 
@@ -16,7 +11,7 @@
 
 const nodemailer  = require('nodemailer'); // kept for getTestMessageUrl only
 const EmailLog    = require('../models/EmailLog');
-const { sendMail } = require('./transporter');
+const sendMail = require('./sendEmail');
 
 // ─────────────────────────────────────────────────────────────────
 // RETRY LOGIC & LOGGING WRAPPER  (signature identical to before)
