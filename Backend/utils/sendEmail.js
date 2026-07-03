@@ -8,17 +8,10 @@ const nodemailer = require('nodemailer');
 // Secure: false (since it uses STARTTLS)
 // family: 4 forces Node.js to prefer IPv4 (bypasses IPv6 routing/ENETUNREACH errors)
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false, 
-  family: 4, 
+  service: 'gmail',
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
-  },
-  tls: {
-    // Necessary for environments like Render where SSL certs must bypass local validation
-    rejectUnauthorized: false,
   },
 });
 
@@ -52,7 +45,7 @@ const sendEmail = async ({ to, subject, text, html, from }) => {
     console.error(`   ↳ Code:          ${error.code || 'N/A'}`);
     console.error(`   ↳ Command:       ${error.command || 'N/A'}`);
     console.error(`   ↳ Response:      ${error.response || 'N/A'}`);
-    
+
     if (error.code === 'EAUTH') {
       console.error('   💡 Suggestion: Authentication failed. Verify EMAIL_USER is correct and EMAIL_PASS is a valid 16-character Gmail App Password.');
     } else if (error.code === 'ENETUNREACH') {
@@ -74,7 +67,7 @@ const verifyConnection = async () => {
     console.error('❌ [Nodemailer] SMTP connection verification failed.');
     console.error(`   ↳ Message:  ${error.message}`);
     console.error(`   ↳ Code:     ${error.code || 'N/A'}`);
-    
+
     if (error.code === 'EAUTH') {
       console.error('   💡 Suggestion: Check if EMAIL_USER and EMAIL_PASS are correct. Verify you are using a Gmail App Password.');
     } else if (error.code === 'ENETUNREACH') {
