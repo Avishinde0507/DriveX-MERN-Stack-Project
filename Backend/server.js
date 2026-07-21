@@ -49,7 +49,6 @@ app.use(express.json());
 // 2. Strict CORS Configuration
 const allowedOrigins = [
   'https://drivex-mern-stack-project-ui.onrender.com',
-  'https://drivex-mern-stack-project-react.onrender.com',
   'http://localhost:5173',
   'http://localhost:3000'
 ];
