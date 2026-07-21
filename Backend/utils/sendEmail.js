@@ -17,28 +17,52 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS,
   },
   tls: {
-    // Necessary for environments like Render where SSL certs must bypass local validation
+    // Necessary to bypass local SSL cert validation in certain production environments
     rejectUnauthorized: false,
   },
 });
 
 /**
- * Reusable email utility using Gmail SMTP with App Passwords
+ * Reusable email utility using Gmail SMTP with App Passwords.
+ * Automatically attaches DriveX-logo.png as a CID inline attachment so
+ * every email template can reference it as <img src="cid:drivex-logo">.
+ * This avoids the Gmail 102 KB clip limit that breaks base64 data URIs.
+ *
  * @param {Object} options
- * @param {string} options.to - Recipient email address
- * @param {string} options.subject - Email subject
- * @param {string} [options.text] - Plain text content
- * @param {string} [options.html] - HTML content
- * @param {string} [options.from] - Custom from address (optional)
- * @returns {Promise<Object>} - Nodemailer send result info
+ * @param {string} options.to       - Recipient email address
+ * @param {string} options.subject  - Email subject
+ * @param {string} [options.text]   - Plain text content
+ * @param {string} [options.html]   - HTML content
+ * @param {string} [options.from]   - Custom from address (optional)
+ * @returns {Promise<Object>}       - Nodemailer send result info
  */
 const sendEmail = async ({ to, subject, text, html, from }) => {
+  const path = require('path');
+  const fs   = require('fs');
+
+  // Attach the DriveX logo as a CID inline image.
+  // The HTML templates reference it as:  <img src="cid:drivex-logo">
+  const logoPath = path.resolve(__dirname, '../../Frontend/public/DriveX-logo.png');
+  const attachments = [];
+  if (fs.existsSync(logoPath)) {
+    attachments.push({
+      filename:           'DriveX-logo.png',
+      path:               logoPath,
+      cid:                'logo@drivex.com',   // <-- HTML uses  src="cid:logo@drivex.com"
+      contentType:        'image/png',
+      contentDisposition: 'inline',
+    });
+  } else {
+    console.warn('⚠️  [Email] DriveX-logo.png not found at:', logoPath);
+  }
+
   const mailOptions = {
     from: from || process.env.SMTP_FROM || `"${process.env.EMAIL_USER ? process.env.EMAIL_USER.split('@')[0] : 'DriveX'}" <${process.env.EMAIL_USER}>`,
     to,
     subject,
     text,
     html,
+    attachments,
   };
 
   try {

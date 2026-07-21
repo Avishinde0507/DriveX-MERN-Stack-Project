@@ -9,9 +9,26 @@
 
 'use strict';
 
+const fs          = require('fs');
+const path        = require('path');
 const nodemailer  = require('nodemailer'); // kept for getTestMessageUrl only
 const EmailLog    = require('../models/EmailLog');
 const sendMail = require('./sendEmail');
+
+// ─────────────────────────────────────────────────────────────────
+// LOGO — embedded as Base64 data URI so it renders in all email
+// clients regardless of whether they can reach our server
+// ─────────────────────────────────────────────────────────────────
+let LOGO_DATA_URI = '';
+try {
+  const logoPath = path.resolve(__dirname, '../../Frontend/public/DriveX-logo.png');
+  const logoBytes = fs.readFileSync(logoPath);
+  LOGO_DATA_URI = `data:image/png;base64,${logoBytes.toString('base64')}`;
+  console.log('✅ [Email] DriveX logo loaded as inline Base64 data URI.');
+} catch (e) {
+  console.warn('⚠️  [Email] Could not load DriveX-logo.png for email embedding:', e.message);
+  LOGO_DATA_URI = ''; // fallback: img will not render but emails still send
+}
 
 // ─────────────────────────────────────────────────────────────────
 // RETRY LOGIC & LOGGING WRAPPER  (signature identical to before)
@@ -126,7 +143,7 @@ const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-
 const sendBookingRequestEmail = async ({ to, customerName, bookingId, vehicleDetails, startDate, endDate, durationType, fareSummary, userId }) => {
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${baseStyles}</style></head><body>
   <div class="wrap">
-    <div class="header"><img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/DriveX-logo.png" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge">📅 Booking Request</div></div>
+    <div class="header"><img src="cid:logo@drivex.com" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge">📅 Booking Request</div></div>
     <div class="content">
       <div class="title">Your Booking Request Has Been Submitted</div>
       <div class="subtitle">Awaiting Owner Approval</div>
@@ -153,7 +170,7 @@ const sendBookingRequestEmail = async ({ to, customerName, bookingId, vehicleDet
 const sendBookingApprovedEmail = async ({ to, customerName, bookingId, vehicleDetails, startDate, endDate, pickupLocation, fareSummary, ownerPhone, userId }) => {
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${baseStyles}</style></head><body>
   <div class="wrap">
-    <div class="header"><img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/DriveX-logo.png" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge" style="background:rgba(46,204,113,.15);color:#2ecc71;border-color:rgba(46,204,113,.3)">✅ Booking Confirmed</div></div>
+    <div class="header"><img src="cid:logo@drivex.com" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge" style="background:rgba(46,204,113,.15);color:#2ecc71;border-color:rgba(46,204,113,.3)">✅ Booking Confirmed</div></div>
     <div class="content">
       <div class="title">Your DriveX Booking Has Been Approved</div>
       <div class="subtitle" style="color:#2ecc71">Get ready for your trip!</div>
@@ -195,7 +212,7 @@ const sendBookingApprovedEmail = async ({ to, customerName, bookingId, vehicleDe
 const sendBookingRejectedEmail = async ({ to, customerName, bookingId, vehicleDetails, rejectionReason, hasPayment, userId }) => {
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${baseStyles}</style></head><body>
   <div class="wrap">
-    <div class="header"><img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/DriveX-logo.png" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge" style="background:rgba(231,76,60,.15);color:#e74c3c;border-color:rgba(231,76,60,.3)">❌ Booking Rejected</div></div>
+    <div class="header"><img src="cid:logo@drivex.com" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge" style="background:rgba(231,76,60,.15);color:#e74c3c;border-color:rgba(231,76,60,.3)">❌ Booking Rejected</div></div>
     <div class="content">
       <div class="title">Your DriveX Booking Request Was Rejected</div>
       <div class="subtitle" style="color:#e74c3c">We're sorry for the inconvenience</div>
@@ -217,7 +234,7 @@ const sendBookingRejectedEmail = async ({ to, customerName, bookingId, vehicleDe
 const sendBookingCancelledEmail = async ({ to, customerName, bookingId, vehicleDetails, cancelDate, refundEligible, refundAmount, userId }) => {
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${baseStyles}</style></head><body>
   <div class="wrap">
-    <div class="header"><img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/DriveX-logo.png" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge">🚫 Booking Cancelled</div></div>
+    <div class="header"><img src="cid:logo@drivex.com" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge">🚫 Booking Cancelled</div></div>
     <div class="content">
       <div class="title">Your Booking Has Been Cancelled</div>
       <div class="subtitle">Cancellation Processed Successfully</div>
@@ -244,7 +261,7 @@ const sendBookingCancelledEmail = async ({ to, customerName, bookingId, vehicleD
 const sendBookingCompletedEmail = async ({ to, customerName, bookingId, vehicleDetails, endDate, totalPaid, userId }) => {
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${baseStyles}</style></head><body>
   <div class="wrap">
-    <div class="header"><img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/DriveX-logo.png" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge" style="background:rgba(52,152,219,.15);color:#3498db;border-color:rgba(52,152,219,.3)">🏁 Trip Completed</div></div>
+    <div class="header"><img src="cid:logo@drivex.com" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge" style="background:rgba(52,152,219,.15);color:#3498db;border-color:rgba(52,152,219,.3)">🏁 Trip Completed</div></div>
     <div class="content">
       <div class="title">Hope You Had a Great Trip!</div>
       <div class="subtitle" style="color:#3498db">Your booking has been marked as completed</div>
@@ -278,7 +295,7 @@ const sendBookingCompletedEmail = async ({ to, customerName, bookingId, vehicleD
 const sendReviewSubmittedEmail = async ({ to, customerName, bookingId, rating, userId }) => {
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${baseStyles}</style></head><body>
   <div class="wrap">
-    <div class="header"><img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/DriveX-logo.png" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge" style="background:rgba(241,196,15,.15);color:#f1c40f;border-color:rgba(241,196,15,.3)">⭐ Review Submitted</div></div>
+    <div class="header"><img src="cid:logo@drivex.com" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge" style="background:rgba(241,196,15,.15);color:#f1c40f;border-color:rgba(241,196,15,.3)">⭐ Review Submitted</div></div>
     <div class="content">
       <div class="title">Thank You For Your Review!</div>
       <div class="subtitle" style="color:#f1c40f">Your feedback helps us improve</div>
@@ -307,7 +324,7 @@ const sendReviewSubmittedEmail = async ({ to, customerName, bookingId, rating, u
 const sendRefundInitiatedEmail = async ({ to, customerName, bookingId, refundId, refundAmount, transactionRef, userId }) => {
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${baseStyles}</style></head><body>
   <div class="wrap">
-    <div class="header"><img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/DriveX-logo.png" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge">💸 Refund Initiated</div></div>
+    <div class="header"><img src="cid:logo@drivex.com" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge">💸 Refund Initiated</div></div>
     <div class="content">
       <div class="title">Your Refund Has Been Initiated</div>
       <div class="subtitle">Processing your refund</div>
@@ -333,7 +350,7 @@ const sendRefundInitiatedEmail = async ({ to, customerName, bookingId, refundId,
 const sendRefundCompletedEmail = async ({ to, customerName, bookingId, refundId, refundAmount, paymentMethod, transactionId, userId }) => {
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${baseStyles}</style></head><body>
   <div class="wrap">
-    <div class="header"><img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/DriveX-logo.png" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge" style="background:rgba(46,204,113,.15);color:#2ecc71;border-color:rgba(46,204,113,.3)">✅ Refund Processed</div></div>
+    <div class="header"><img src="cid:logo@drivex.com" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge" style="background:rgba(46,204,113,.15);color:#2ecc71;border-color:rgba(46,204,113,.3)">✅ Refund Processed</div></div>
     <div class="content">
       <div class="title">Your Refund Was Processed Successfully</div>
       <div class="subtitle" style="color:#2ecc71">Refund complete</div>
@@ -362,7 +379,7 @@ const sendRefundCompletedEmail = async ({ to, customerName, bookingId, refundId,
 const sendComplaintRegisteredEmail = async ({ to, customerName, complaintId, complaintType, subject, priority, bookingId, userId }) => {
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${baseStyles}</style></head><body>
   <div class="wrap">
-    <div class="header"><img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/DriveX-logo.png" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge">🗂️ Complaint Registered</div></div>
+    <div class="header"><img src="cid:logo@drivex.com" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge">🗂️ Complaint Registered</div></div>
     <div class="content">
       <div class="title">Complaint Successfully Submitted</div>
       <div class="subtitle">Your concern has been registered with us</div>
@@ -391,7 +408,7 @@ const sendComplaintRegisteredEmail = async ({ to, customerName, complaintId, com
 const sendComplaintUnderReviewEmail = async ({ to, customerName, complaintId, subject, adminNote, userId, bookingId }) => {
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${baseStyles}</style></head><body>
   <div class="wrap">
-    <div class="header"><img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/DriveX-logo.png" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge">🔍 Under Review</div></div>
+    <div class="header"><img src="cid:logo@drivex.com" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge">🔍 Under Review</div></div>
     <div class="content">
       <div class="title">Your Complaint Is Under Review</div>
       <div class="subtitle">Our team is actively investigating</div>
@@ -419,7 +436,7 @@ const sendComplaintUnderReviewEmail = async ({ to, customerName, complaintId, su
 const sendOwnerResponseEmail = async ({ to, recipientName, complaintId, subject, ownerName, responseMessage, userId, bookingId }) => {
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${baseStyles}</style></head><body>
   <div class="wrap">
-    <div class="header"><img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/DriveX-logo.png" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge">💬 Owner Responded</div></div>
+    <div class="header"><img src="cid:logo@drivex.com" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge">💬 Owner Responded</div></div>
     <div class="content">
       <div class="title">Owner Response Added</div>
       <div class="subtitle">New message on your complaint thread</div>
@@ -449,7 +466,7 @@ const sendComplaintResolvedEmail = async ({ to, customerName, complaintId, subje
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${baseStyles}</style></head><body>
   <div class="wrap">
-    <div class="header"><img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/DriveX-logo.png" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge">${isClosed ? '🔒 Complaint Closed' : '✅ Complaint Resolved'}</div></div>
+    <div class="header"><img src="cid:logo@drivex.com" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge">${isClosed ? '🔒 Complaint Closed' : '✅ Complaint Resolved'}</div></div>
     <div class="content">
       <div class="title">Complaint ${isClosed ? 'Closed' : 'Resolved'}</div>
       <div class="subtitle" style="color:#2ecc71">Your case has been ${isClosed ? 'closed' : 'resolved'}</div>
@@ -501,7 +518,7 @@ const sendEmail = async ({ to, subject, title, text, otp }) => {
     <body>
       <div class="container">
         <div class="header">
-          <img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/DriveX-logo.png" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" />
+          <img src="cid:logo@drivex.com" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" />
         </div>
         <div class="content">
           <h2 class="title">${title}</h2>
@@ -565,7 +582,7 @@ const sendActivationConfirmationEmail = async ({ to, name }) => {
     <body>
       <div class="container">
         <div class="header">
-          <img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/DriveX-logo.png" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" />
+          <img src="cid:logo@drivex.com" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" />
         </div>
         <div class="content">
           <h2 class="title" style="color: #00CEC9;">Account Activated Successfully</h2>
@@ -621,7 +638,7 @@ const sendPasswordResetConfirmationEmail = async ({ to, name }) => {
     <body>
       <div class="container">
         <div class="header">
-          <img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/DriveX-logo.png" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" />
+          <img src="cid:logo@drivex.com" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" />
         </div>
         <div class="content">
           <h2 class="title">Password Updated Successfully</h2>
@@ -674,7 +691,7 @@ const sendEmailVerificationSuccessEmail = async ({ to, name, oldEmail }) => {
       .ftr { background:#090d13; padding:18px; text-align:center; font-size:12px; color:#484f58; border-top:1px solid rgba(0,206,201,.1); }
     </style></head><body>
     <div class="wrap">
-      <div class="hdr"><img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/DriveX-logo.png" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge">✅ Email Verified</div></div>
+      <div class="hdr"><img src="cid:logo@drivex.com" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge">✅ Email Verified</div></div>
       <div class="body">
         <h2 class="title">Email Updated Successfully</h2>
         <p class="sub">Account Security Notification</p>
@@ -735,7 +752,7 @@ const sendDashboardPasswordChangeEmail = async ({ to, name }) => {
       .ftr { background:#090d13; padding:18px; text-align:center; font-size:12px; color:#484f58; border-top:1px solid rgba(240,88,12,.1); }
     </style></head><body>
     <div class="wrap">
-      <div class="hdr"><img src="${process.env.FRONTEND_URL || 'http://localhost:3000'}/DriveX-logo.png" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge">🔒 Security Alert</div></div>
+      <div class="hdr"><img src="cid:logo@drivex.com" alt="DriveX" style="height:80px; display:inline-block; vertical-align:middle;" /><div class="badge">🔒 Security Alert</div></div>
       <div class="body">
         <h2 class="title">Password Was Updated</h2>
         <p class="sub">Account Security Notification</p>

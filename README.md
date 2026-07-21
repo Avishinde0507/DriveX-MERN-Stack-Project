@@ -38,8 +38,7 @@ DriveX_React/
 ├── Frontend/           # React client application (Vite SPA)
 │   ├── src/            # Components, Pages, Context, Services, Utils
 │   ├── public/         # Static assets (logo, images)
-│   ├── vite.config.js  # Vite dev & build configuration
-│   └── vercel.json     # Vercel SPA routing rules
+│   └── vite.config.js  # Vite dev & build configuration
 ├── Backend/            # Node.js + Express API server
 │   ├── config/         # DB connection utilities
 │   ├── controllers/    # Business logic handlers
@@ -125,27 +124,6 @@ SMTP_FROM="DriveX Support" <your_sender_email@gmail.com>
 ```env
 VITE_API_URL=http://localhost:8080/api
 ```
-
----
-
-## 🚀 Deployment Instructions
-
-### 1. Frontend (Vercel)
-1. Import the project folder to Vercel.
-2. Set the **Root Directory** option to `Frontend`.
-3. Select **Vite** as the Framework Preset (if not auto-detected).
-4. Configure the environment variables:
-   * `VITE_API_URL`: Set to your live Render API endpoint (e.g., `https://drivex-api.onrender.com/api`).
-5. Click **Deploy**. SPA routing is automatically handled by the preconfigured `Frontend/vercel.json`.
-
-### 2. Backend (Render)
-1. Create a new **Web Service** on Render and link your repository.
-2. Set the **Root Directory** option to `Backend`.
-3. Set the **Build Command** to `npm install`.
-4. Set the **Start Command** to `node server.js` or `npm start`.
-5. In **Advanced Settings**, add the environment variables specified in the Backend section above (ensure `NODE_ENV` is set to `production`).
-6. Add the Health Check Path as `/health`.
-7. Click **Deploy**.
 
 ---
 
