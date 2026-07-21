@@ -40,42 +40,55 @@ connectDB();
 const app = express();
 
 // ─────────────────────────────────────────────────────────────────
-// SECURITY MIDDLEWARE
+// SECURITY & REQUEST PARSING MIDDLEWARE
 // ─────────────────────────────────────────────────────────────────
-// 1. HTTP Headers Security (XSS protection, Clickjacking protection, etc.)
-app.use(helmet({
-  contentSecurityPolicy: false, // Disabled to ensure uploads and local interfaces load easily
-  crossOriginResourcePolicy: { policy: "cross-origin" }
-}));
 
-// 2. Prevent NoSQL Injection
-app.use(mongoSanitize());
+// 1. Body Parser (Must come first to parse JSON bodies)
+app.use(express.json());
 
-// 3. Strict CORS Configuration
+// 2. Strict CORS Configuration
 const allowedOrigins = [
-  process.env.CLIENT_URL,
-  'http://localhost:3000',
+  'https://drivex-mern-stack-project-react.onrender.com',
   'http://localhost:5173',
-  'http://127.0.0.1:3000',
-  'http://127.0.0.1:5173'
-].filter(Boolean);
+  'http://localhost:3000'
+];
 
-app.use(cors({
+if (process.env.CLIENT_URL) {
+  const clientUrl = process.env.CLIENT_URL.replace(/\/$/, '');
+  if (!allowedOrigins.includes(clientUrl)) {
+    allowedOrigins.push(clientUrl);
+  }
+}
+
+const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps, postman, curl)
     if (!origin) return callback(null, true);
 
-    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
+    if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     } else {
       const msg = `The CORS policy for this site does not allow access from origin: ${origin}`;
       return callback(new Error(msg), false);
     }
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // Handle OPTIONS preflight requests
+
+// 3. HTTP Headers Security (XSS protection, Clickjacking protection, etc.)
+app.use(helmet({
+  contentSecurityPolicy: false, // Disabled to ensure uploads and local interfaces load easily
+  crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-app.use(express.json());
+// 4. Prevent NoSQL Injection
+app.use(mongoSanitize());
 
 // Request logger
 app.use((req, res, next) => {
