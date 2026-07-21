@@ -79,7 +79,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // Handle OPTIONS preflight requests
+app.options(/.*/, cors(corsOptions)); // Handle OPTIONS preflight requests
 
 // 3. HTTP Headers Security (XSS protection, Clickjacking protection, etc.)
 app.use(helmet({
