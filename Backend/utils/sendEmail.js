@@ -2,10 +2,8 @@
 
 const nodemailer = require('nodemailer');
 
-// Configure the transporter with Gmail's recommended SMTP settings:
-// Host: smtp.gmail.com
-// Port: 587 (STARTTLS)
-// Secure: false (since it uses STARTTLS)
+// Configure the transporter using SMTP settings from environment variables.
+// Port: 587 (STARTTLS) — Secure: false since STARTTLS is used.
 // family: 4 forces Node.js to prefer IPv4 (bypasses IPv6 routing/ENETUNREACH errors)
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -14,10 +12,6 @@ const transporter = nodemailer.createTransport({
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
-  },
-  tls: {
-    // Necessary to bypass local SSL cert validation in certain production environments
-    rejectUnauthorized: false,
   },
 });
 
@@ -97,12 +91,12 @@ const verifyConnection = async () => {
   console.log(`   ↳ SMTP_PASS (from env):  ${process.env.SMTP_PASS ? '******** (configured)' : 'NOT CONFIGURED'}`);
 
   console.log('\n📡 [Nodemailer] SMTP Transporter Configuration:');
-  console.log(`   ↳ Host:   smtp.gmail.com`);
-  console.log(`   ↳ Port:   587`);
+  console.log(`   ↳ Host:   ${process.env.SMTP_HOST || 'smtp-relay.brevo.com'}`);
+  console.log(`   ↳ Port:   ${process.env.SMTP_PORT || 587}`);
   console.log(`   ↳ Secure: false (STARTTLS)`);
   console.log(`   ↳ Family: IPv4 (Forced via family: 4)`);
 
-  console.log('\n📡 [Nodemailer] Verifying SMTP connection to smtp.gmail.com:587...');
+  console.log(`\n📡 [Nodemailer] Verifying SMTP connection to ${process.env.SMTP_HOST || 'smtp-relay.brevo.com'}:${process.env.SMTP_PORT || 587}...`);
   try {
     await transporter.verify();
     console.log('✅ [Nodemailer] SMTP connection verified successfully. Ready to send emails.');
@@ -112,7 +106,7 @@ const verifyConnection = async () => {
     console.error(`   ↳ Code:     ${error.code || 'N/A'}`);
 
     if (error.code === 'EAUTH') {
-      console.error('   💡 Suggestion: Check if SMTP_USER and SMTP_PASS are correct. Verify you are using a Gmail App Password.');
+      console.error('   💡 Suggestion: Check if SMTP_USER and SMTP_PASS are correct in your .env file.');
     } else if (error.code === 'ENETUNREACH') {
       console.error('   💡 Suggestion: Network routing error (IPv6 unreachable). Ensure the family setting resolves to IPv4.');
     }
