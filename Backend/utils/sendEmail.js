@@ -6,13 +6,17 @@ const nodemailer = require('nodemailer');
 // Port: 587 (STARTTLS) — Secure: false since STARTTLS is used.
 // family: 4 forces Node.js to prefer IPv4 (bypasses IPv6 routing/ENETUNREACH errors)
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: process.env.SMTP_PORT,
-  secure: false,
+  host:    process.env.SMTP_HOST || 'smtp-relay.brevo.com',
+  port:    parseInt(process.env.SMTP_PORT, 10) || 587,   // ← must be a Number, not a String
+  secure:  false,                                          // false = STARTTLS on port 587
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
+  family:             4,      // force IPv4 — Render/cloud hosts often drop IPv6 SMTP
+  connectionTimeout:  10000,  // 10 s — fail fast instead of hanging
+  greetingTimeout:    10000,  // 10 s — time allowed for SMTP EHLO handshake
+  socketTimeout:      15000,  // 15 s — max idle time per socket operation
 });
 
 /**
