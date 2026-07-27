@@ -1,123 +1,206 @@
 'use strict';
 
-const nodemailer = require('nodemailer');
+const https = require('https');
+const path  = require('path');
+const fs    = require('fs');
 
-// Configure the transporter using SMTP settings from environment variables.
-// Port: 587 (STARTTLS) — Secure: false since STARTTLS is used.
-// family: 4 forces Node.js to prefer IPv4 (bypasses IPv6 routing/ENETUNREACH errors)
-const transporter = nodemailer.createTransport({
-  host:    process.env.SMTP_HOST || 'smtp-relay.brevo.com',
-  port:    parseInt(process.env.SMTP_PORT, 10) || 587,   // ← must be a Number, not a String
-  secure:  false,                                          // false = STARTTLS on port 587
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-  family:             4,      // force IPv4 — Render/cloud hosts often drop IPv6 SMTP
-  connectionTimeout:  10000,  // 10 s — fail fast instead of hanging
-  greetingTimeout:    10000,  // 10 s — time allowed for SMTP EHLO handshake
-  socketTimeout:      15000,  // 15 s — max idle time per socket operation
-});
+// ─────────────────────────────────────────────────────────────────────────────
+// Brevo Transactional Email – HTTP API
+//
+// WHY HTTP INSTEAD OF SMTP?
+//   Render.com (and most PaaS providers) block outbound SMTP ports 25/465/587.
+//   Brevo's REST API runs on HTTPS port 443, which is always open.
+//
+// API KEY:
+//   The SMTP_PASS value that starts with "xsmtpsib-..." is also accepted as
+//   a Brevo API key for the REST endpoint, so no new secret is required.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const BREVO_API_KEY = process.env.BREVO_API_KEY || process.env.SMTP_PASS;
+const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
+
+// ── Logo: embed as Base64 CID attachment so it renders inside all mail clients ─
+const logoPath = path.resolve(__dirname, '../../Frontend/public/DriveX-logo.png');
+let logoCidAttachment = null;
+if (fs.existsSync(logoPath)) {
+  logoCidAttachment = {
+    content:     fs.readFileSync(logoPath).toString('base64'),
+    name:        'DriveX-logo.png',
+    contentId:   'logo@drivex.com',   // templates use  src="cid:logo@drivex.com"
+    contentType: 'image/png',
+    disposition: 'inline',
+  };
+  console.log('✅ [Email] DriveX logo loaded as inline Base64 CID attachment.');
+} else {
+  console.warn('⚠️  [Email] DriveX-logo.png not found – logo will not appear in emails.');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Low-level helper: POST JSON to Brevo's API via Node built-in https
+// ─────────────────────────────────────────────────────────────────────────────
+const brevoPost = (payload) =>
+  new Promise((resolve, reject) => {
+    const body = JSON.stringify(payload);
+
+    const req = https.request(
+      {
+        hostname: 'api.brevo.com',
+        path:     '/v3/smtp/email',
+        method:   'POST',
+        headers: {
+          'api-key':       BREVO_API_KEY,
+          'Content-Type':  'application/json',
+          'Content-Length': Buffer.byteLength(body),
+        },
+      },
+      (res) => {
+        let raw = '';
+        res.on('data', (chunk) => (raw += chunk));
+        res.on('end', () => {
+          const data = raw ? JSON.parse(raw) : {};
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            resolve({ statusCode: res.statusCode, ...data });
+          } else {
+            const err = new Error(
+              `Brevo API error ${res.statusCode}: ${data.message || raw}`
+            );
+            err.statusCode = res.statusCode;
+            err.response   = data;
+            reject(err);
+          }
+        });
+      }
+    );
+
+    req.on('error', reject);
+    req.setTimeout(15000, () => {
+      req.destroy(new Error('Brevo HTTP request timed out after 15 s'));
+    });
+    req.write(body);
+    req.end();
+  });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// sendEmail  – drop-in replacement for the old Nodemailer version
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Reusable email utility using Gmail SMTP with App Passwords.
- * Automatically attaches DriveX-logo.png as a CID inline attachment so
- * every email template can reference it as <img src="cid:drivex-logo">.
- * This avoids the Gmail 102 KB clip limit that breaks base64 data URIs.
+ * Send a transactional email via Brevo's HTTP API.
  *
  * @param {Object} options
  * @param {string} options.to       - Recipient email address
  * @param {string} options.subject  - Email subject
- * @param {string} [options.text]   - Plain text content
- * @param {string} [options.html]   - HTML content
- * @param {string} [options.from]   - Custom from address (optional)
- * @returns {Promise<Object>}       - Nodemailer send result info
+ * @param {string} [options.text]   - Plain-text fallback
+ * @param {string} [options.html]   - HTML body
+ * @param {string} [options.from]   - Custom "From" address (optional)
+ * @returns {Promise<Object>}        - Brevo API response { messageId }
  */
 const sendEmail = async ({ to, subject, text, html, from }) => {
-  const path = require('path');
-  const fs = require('fs');
-
-  // Attach the DriveX logo as a CID inline image.
-  // The HTML templates reference it as:  <img src="cid:drivex-logo">
-  const logoPath = path.resolve(__dirname, '../../Frontend/public/DriveX-logo.png');
-  const attachments = [];
-  if (fs.existsSync(logoPath)) {
-    attachments.push({
-      filename: 'DriveX-logo.png',
-      path: logoPath,
-      cid: 'logo@drivex.com',   // <-- HTML uses  src="cid:logo@drivex.com"
-      contentType: 'image/png',
-      contentDisposition: 'inline',
-    });
-  } else {
-    console.warn('⚠️  [Email] DriveX-logo.png not found at:', logoPath);
+  if (!BREVO_API_KEY) {
+    throw new Error('sendEmail: BREVO_API_KEY / SMTP_PASS is not set in environment.');
   }
 
-  const mailOptions = {
-    from: from || process.env.SMTP_FROM || `"${process.env.SMTP_USER ? process.env.SMTP_PASS.split('@')[0] : 'DriveX'}" <${process.env.SMTP_USER}>`,
-    to,
+  // ── Sender ──────────────────────────────────────────────────────────────────
+  let senderEmail = process.env.SMTP_USER || 'noreply@drivex.com';
+  let senderName  = 'DriveX Support';
+
+  if (from) {
+    // Parse  "DriveX Support" <email@example.com>
+    const match = from.match(/^"?([^"<]+)"?\s*<([^>]+)>$/);
+    if (match) {
+      senderName  = match[1].trim();
+      senderEmail = match[2].trim();
+    } else {
+      senderEmail = from.trim();
+    }
+  } else if (process.env.SMTP_FROM) {
+    const match = process.env.SMTP_FROM.match(/^"?([^"<]+)"?\s*<([^>]+)>$/);
+    if (match) {
+      senderName  = match[1].trim();
+      senderEmail = match[2].trim();
+    }
+  }
+
+  // ── Payload ─────────────────────────────────────────────────────────────────
+  const payload = {
+    sender:      { name: senderName, email: senderEmail },
+    to:          [{ email: to }],
     subject,
-    text,
-    html,
-    attachments,
+    ...(html && { htmlContent: html }),
+    ...(text && { textContent: text }),
   };
 
+  // Attach logo as inline CID so HTML templates can use src="cid:logo@drivex.com"
+  if (logoCidAttachment) {
+    payload.attachment = [logoCidAttachment];
+  }
+
+  // ── Send ────────────────────────────────────────────────────────────────────
   try {
-    console.log(`📧 [Nodemailer] Attempting to send email to: ${to} (Subject: "${subject}")`);
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`✅ [Nodemailer] Email sent successfully. Message ID: ${info.messageId}`);
+    console.log(`📧 [Brevo HTTP] Sending email → ${to} (Subject: "${subject}")`);
+    const info = await brevoPost(payload);
+    console.log(`✅ [Brevo HTTP] Email sent. Message ID: ${info.messageId || '(none)'}`);
     return info;
   } catch (error) {
-    console.error(`❌ [Nodemailer Error] Failed to send email to ${to}.`);
-    console.error(`   ↳ Error Message: ${error.message}`);
-    console.error(`   ↳ Code:          ${error.code || 'N/A'}`);
-    console.error(`   ↳ Command:       ${error.command || 'N/A'}`);
-    console.error(`   ↳ Response:      ${error.response || 'N/A'}`);
-
-    if (error.code === 'EAUTH') {
-      console.error('   💡 Suggestion: Authentication failed. Verify SMTP_USER is correct and SMTP_PASS is a valid 16-character Gmail App Password.');
-    } else if (error.code === 'ENETUNREACH') {
-      console.error('   💡 Suggestion: Network unreachable. Ensure there is internet connectivity and IPv4 is preferred.');
+    console.error(`❌ [Brevo HTTP] Failed to send email to ${to}.`);
+    console.error(`   ↳ Error:    ${error.message}`);
+    if (error.statusCode === 401) {
+      console.error('   💡 Suggestion: BREVO_API_KEY / SMTP_PASS is invalid. Regenerate it in Brevo → Settings → API Keys.');
+    } else if (error.statusCode === 400) {
+      console.error('   💡 Suggestion: Bad request – check sender email is verified in your Brevo account.');
     }
     throw error;
   }
 };
 
-/**
- * Verifies Nodemailer SMTP connectivity
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// verifyConnection  – confirms the API key is valid with a lightweight check
+// ─────────────────────────────────────────────────────────────────────────────
 const verifyConnection = async () => {
-  console.log('\n📡 [Nodemailer] Deployed Environment SMTP Configuration Check:');
-  console.log(`   ↳ SMTP_HOST (from env):   ${process.env.SMTP_HOST || 'Not Set (using default smtp.gmail.com)'}`);
-  console.log(`   ↳ SMTP_PORT (from env):   ${process.env.SMTP_PORT || 'Not Set (using default 587)'}`);
-  console.log(`   ↳ SMTP_SECURE (from env): ${process.env.SMTP_SECURE || 'Not Set (using default false)'}`);
-  console.log(`   ↳ SMTP_USER (from env):  ${process.env.SMTP_USER || 'Not Set'}`);
-  console.log(`   ↳ SMTP_PASS (from env):  ${process.env.SMTP_PASS ? '******** (configured)' : 'NOT CONFIGURED'}`);
+  console.log('\n📡 [Brevo HTTP] Email Service Configuration:');
+  console.log(`   ↳ Transport:   Brevo REST API (HTTPS port 443 – no SMTP blocking)`);
+  console.log(`   ↳ API Key:     ${BREVO_API_KEY ? '******** (configured)' : 'NOT CONFIGURED ⚠️'}`);
+  console.log(`   ↳ Sender:      ${process.env.SMTP_FROM || process.env.SMTP_USER || '(not set)'}`);
 
-  console.log('\n📡 [Nodemailer] SMTP Transporter Configuration:');
-  console.log(`   ↳ Host:   ${process.env.SMTP_HOST || 'smtp-relay.brevo.com'}`);
-  console.log(`   ↳ Port:   ${process.env.SMTP_PORT || 587}`);
-  console.log(`   ↳ Secure: false (STARTTLS)`);
-  console.log(`   ↳ Family: IPv4 (Forced via family: 4)`);
+  if (!BREVO_API_KEY) {
+    console.error('❌ [Brevo HTTP] BREVO_API_KEY / SMTP_PASS is not set. Emails will fail.');
+    return;
+  }
 
-  console.log(`\n📡 [Nodemailer] Verifying SMTP connection to ${process.env.SMTP_HOST || 'smtp-relay.brevo.com'}:${process.env.SMTP_PORT || 587}...`);
+  // Verify by fetching account info (GET /v3/account)
+  const check = () =>
+    new Promise((resolve, reject) => {
+      const req = https.request(
+        {
+          hostname: 'api.brevo.com',
+          path:     '/v3/account',
+          method:   'GET',
+          headers:  { 'api-key': BREVO_API_KEY },
+        },
+        (res) => {
+          let raw = '';
+          res.on('data', (c) => (raw += c));
+          res.on('end', () => {
+            if (res.statusCode === 200) resolve(JSON.parse(raw));
+            else reject(new Error(`Status ${res.statusCode}: ${raw}`));
+          });
+        }
+      );
+      req.on('error', reject);
+      req.setTimeout(10000, () => req.destroy(new Error('Timeout')));
+      req.end();
+    });
+
   try {
-    await transporter.verify();
-    console.log('✅ [Nodemailer] SMTP connection verified successfully. Ready to send emails.');
-  } catch (error) {
-    console.error('❌ [Nodemailer] SMTP connection verification failed.');
-    console.error(`   ↳ Message:  ${error.message}`);
-    console.error(`   ↳ Code:     ${error.code || 'N/A'}`);
-
-    if (error.code === 'EAUTH') {
-      console.error('   💡 Suggestion: Check if SMTP_USER and SMTP_PASS are correct in your .env file.');
-    } else if (error.code === 'ENETUNREACH') {
-      console.error('   💡 Suggestion: Network routing error (IPv6 unreachable). Ensure the family setting resolves to IPv4.');
+    const account = await check();
+    console.log(`✅ [Brevo HTTP] API key valid. Account: ${account.email} (Plan: ${account.plan?.[0]?.type || 'unknown'})`);
+  } catch (err) {
+    console.error(`❌ [Brevo HTTP] API key verification failed: ${err.message}`);
+    if (err.message.includes('401')) {
+      console.error('   💡 Suggestion: Regenerate your API key in Brevo → Settings → API Keys.');
     }
   }
 };
 
-sendEmail.transporter = transporter;
-sendEmail.verifyConnection = verifyConnection;
-
-module.exports = sendEmail;
+module.exports        = sendEmail;
+module.exports.verifyConnection = verifyConnection;
