@@ -8,13 +8,12 @@ const nodemailer = require('nodemailer');
 // Secure: false (since it uses STARTTLS)
 // family: 4 forces Node.js to prefer IPv4 (bypasses IPv6 routing/ENETUNREACH errors)
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false, 
-  family: 4, 
+  host: process.env.SMTP_HOST,
+  port: process.env.SMTP_PORT,
+  secure: false,
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
   },
   tls: {
     // Necessary to bypass local SSL cert validation in certain production environments
@@ -38,7 +37,7 @@ const transporter = nodemailer.createTransport({
  */
 const sendEmail = async ({ to, subject, text, html, from }) => {
   const path = require('path');
-  const fs   = require('fs');
+  const fs = require('fs');
 
   // Attach the DriveX logo as a CID inline image.
   // The HTML templates reference it as:  <img src="cid:drivex-logo">
@@ -46,10 +45,10 @@ const sendEmail = async ({ to, subject, text, html, from }) => {
   const attachments = [];
   if (fs.existsSync(logoPath)) {
     attachments.push({
-      filename:           'DriveX-logo.png',
-      path:               logoPath,
-      cid:                'logo@drivex.com',   // <-- HTML uses  src="cid:logo@drivex.com"
-      contentType:        'image/png',
+      filename: 'DriveX-logo.png',
+      path: logoPath,
+      cid: 'logo@drivex.com',   // <-- HTML uses  src="cid:logo@drivex.com"
+      contentType: 'image/png',
       contentDisposition: 'inline',
     });
   } else {
@@ -57,7 +56,7 @@ const sendEmail = async ({ to, subject, text, html, from }) => {
   }
 
   const mailOptions = {
-    from: from || process.env.SMTP_FROM || `"${process.env.EMAIL_USER ? process.env.EMAIL_USER.split('@')[0] : 'DriveX'}" <${process.env.EMAIL_USER}>`,
+    from: from || process.env.SMTP_FROM || `"${process.env.SMTP_USER ? process.env.SMTP_PASS.split('@')[0] : 'DriveX'}" <${process.env.SMTP_USER}>`,
     to,
     subject,
     text,
@@ -78,7 +77,7 @@ const sendEmail = async ({ to, subject, text, html, from }) => {
     console.error(`   ↳ Response:      ${error.response || 'N/A'}`);
 
     if (error.code === 'EAUTH') {
-      console.error('   💡 Suggestion: Authentication failed. Verify EMAIL_USER is correct and EMAIL_PASS is a valid 16-character Gmail App Password.');
+      console.error('   💡 Suggestion: Authentication failed. Verify SMTP_USER is correct and SMTP_PASS is a valid 16-character Gmail App Password.');
     } else if (error.code === 'ENETUNREACH') {
       console.error('   💡 Suggestion: Network unreachable. Ensure there is internet connectivity and IPv4 is preferred.');
     }
@@ -94,8 +93,8 @@ const verifyConnection = async () => {
   console.log(`   ↳ SMTP_HOST (from env):   ${process.env.SMTP_HOST || 'Not Set (using default smtp.gmail.com)'}`);
   console.log(`   ↳ SMTP_PORT (from env):   ${process.env.SMTP_PORT || 'Not Set (using default 587)'}`);
   console.log(`   ↳ SMTP_SECURE (from env): ${process.env.SMTP_SECURE || 'Not Set (using default false)'}`);
-  console.log(`   ↳ EMAIL_USER (from env):  ${process.env.EMAIL_USER || 'Not Set'}`);
-  console.log(`   ↳ EMAIL_PASS (from env):  ${process.env.EMAIL_PASS ? '******** (configured)' : 'NOT CONFIGURED'}`);
+  console.log(`   ↳ SMTP_USER (from env):  ${process.env.SMTP_USER || 'Not Set'}`);
+  console.log(`   ↳ SMTP_PASS (from env):  ${process.env.SMTP_PASS ? '******** (configured)' : 'NOT CONFIGURED'}`);
 
   console.log('\n📡 [Nodemailer] SMTP Transporter Configuration:');
   console.log(`   ↳ Host:   smtp.gmail.com`);
@@ -113,7 +112,7 @@ const verifyConnection = async () => {
     console.error(`   ↳ Code:     ${error.code || 'N/A'}`);
 
     if (error.code === 'EAUTH') {
-      console.error('   💡 Suggestion: Check if EMAIL_USER and EMAIL_PASS are correct. Verify you are using a Gmail App Password.');
+      console.error('   💡 Suggestion: Check if SMTP_USER and SMTP_PASS are correct. Verify you are using a Gmail App Password.');
     } else if (error.code === 'ENETUNREACH') {
       console.error('   💡 Suggestion: Network routing error (IPv6 unreachable). Ensure the family setting resolves to IPv4.');
     }
